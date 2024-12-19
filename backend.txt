@@ -1,0 +1,76 @@
+from fastapi import FastAPI, UploadFile, Form
+from fastapi.middleware.cors import CORSMiddleware
+import replicate
+import uvicorn
+
+app = FastAPI()
+
+# Configure CORS (allow frontend to interact with backend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (can be restricted)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Replicate client setup
+replicate_client = replicate.Client(api_token="your_replicate_api_token")
+
+@app.post("/generate/text-to-image/")
+async def text_to_image(prompt: str = Form(...)):
+    """Generate an image from text using Replicate."""
+    model = "stability-ai/stable-diffusion"  # Example model
+    version = "latest"  # Use the latest version of the model
+
+    try:
+        output = replicate_client.run(
+            model=model,
+            version=version,
+            input={"prompt": prompt}
+        )
+        return {"image_url": output}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/generate/image-to-image/")
+async def image_to_image(file: UploadFile, prompt: str = Form(...)):
+    """Generate an image from another image with modifications."""
+    model = "stability-ai/stable-diffusion-img2img"  # Example model
+    version = "latest"
+
+    try:
+        # Read uploaded file
+        image_bytes = await file.read()
+
+        output = replicate_client.run(
+            model=model,
+            version=version,
+            input={"image": image_bytes, "prompt": prompt}
+        )
+        return {"image_url": output}
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.post("/generate/inpainting/")
+async def inpainting(file: UploadFile, mask: UploadFile, prompt: str = Form(...)):
+    """Edit specific parts of an image based on a mask."""
+    model = "stability-ai/stable-diffusion-inpainting"  # Example model
+    version = "latest"
+
+    try:
+        # Read uploaded files
+        image_bytes = await file.read()
+        mask_bytes = await mask.read()
+
+        output = replicate_client.run(
+            model=model,
+            version=version,
+            input={"image": image_bytes, "mask": mask_bytes, "prompt": prompt}
+        )
+        return {"image_url": output}
+    except Exception as e:
+        return {"error": str(e)}
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
